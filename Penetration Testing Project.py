@@ -199,37 +199,8 @@ print("\n" + "=" * 50 + "\n")
 df = pd.DataFrame(customers_data)
 
 # '최종 가공된 고객 데이터'를 '압도적인 Excel 파일'로 저장!
-output_filename = "Temporary personal data.xlsx"
-df.to_excel(output_filename, index=False) # index=False로 불필요한 인덱스 컬럼 삭제!
+output_filename = "Temporary personal data.csv"
+df.to_csv(output_filename, index=False) # index=False로 불필요한 인덱스 컬럼 삭제!
 
 print(f"--- {len(df)}명의  데이터가 '{output_filename}' 파일로 압도적으로 저장되었습니다! ---")
 
-output_filename = "Temporary personal data.xlsx"  # 파일명은 그대로 유지
-
-print(f"--- 생성된 '{output_filename}' 파일에 비밀번호를 설정합니다. ---")
-
-try:
-    from openpyxl import load_workbook
-
-    # 저장된 Excel 파일을 다시 불러옵니다.
-    wb = load_workbook(output_filename)
-
-    # 비밀번호는 "kingjuhyun"으로 설정했어. 시나리오 목적이니 참고해.
-    # 이 비밀번호는 실제로 보안이 중요한 곳에서는 사용하면 안 돼.
-    password_for_scenario = "pythonProject1"
-
-    # 워크북 구조를 비밀번호로 보호합니다. (파일 열기 비밀번호와는 다름)
-    wb.security.workbookProtection = True
-    wb.security.lockStructure = True
-    wb.security.workbookPassword = password_for_scenario
-
-    # 변경된 워크북을 다시 저장합니다.
-    wb.save(output_filename)
-    print(f"--- 파일 '{output_filename}'에 워크북 보호 비밀번호가 설정되었습니다! (비밀번호: {password_for_scenario}) ---")
-
-except ImportError:
-    print("--- openpyxl 라이브러리가 없어 파일 비밀번호 설정이 불가능합니다. 'pip install openpyxl'을 실행해 주세요. ---")
-except Exception as e:
-    print(f"--- 파일 비밀번호 설정 중 오류가 발생했습니다: {e} ---")
-
-print("--- 이제 다음 단계로 넘어갈 준비가 됐습니다. ---")
