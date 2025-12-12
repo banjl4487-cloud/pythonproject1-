@@ -1,90 +1,82 @@
-# 필요한 라이브러리를 임포트합니다.
-# os: 파일 시스템 관련 작업을 처리합니다.
-# base64: 키를 안전하게 표현하기 위해 사용됩니다.
-# cryptography.fernet: Fernet 대칭키 암호화를 구현합니다.
-# cryptography.hazmat.primitives: 해시 및 PBKDF2HMC 같은 암호화 원시 함수를 제공합니다.
-# cryptography.hazmat.backends: 암호화 연산의 백엔드를 제공합니다.
 import os
 import base64
-from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives import hashes
+# import pandas as pd # 가짜 데이터 생성 함수를 삭제했으므로 pandas 임포트는 더 이상 필요 없습니다.
+# from faker import Faker # 가짜 데이터 생성 함수를 삭제했으므로 faker 임포트는 더 이상 필요 없습니다.
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
+from cryptography.fernet import Fernet
+import traceback
 
-# ====================================================================
-# [암호화 설정 및 파일 경로 정의]
-# ====================================================================
-# 데이터를 암호화/복호화할 때 사용될 비밀번호(인증키).
-# 실제 시스템에서는 이 비밀번호가 안전하게 관리되어야 합니다.
+
+# --- 초강력 1. 핵심 파생 함수 정의 (암호화/복호화 모두 이 함수를 사용한다!) ---
+def derive_key(password: str, salt: bytes) -> bytes:
+    """
+    주어진 비밀번호와 솔트를 사용하여 Fernet 암호화 키를 파생합니다.
+    """
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=480000,
+        backend=default_backend()
+    )
+    key = kdf.derive(password.encode('utf-8'))
+    return base64.urlsafe_b64encode(key)
+
+
+# --- 초강력 2. 시뮬레이션용 상수 정의 ---
+# ⭐⭐⭐ 이 비밀번호가 핵심! 복호화 스크립트와 '압도적으로 동일'해야 함! ⭐⭐⭐
 CORRECT_KEY_PASSWORD = "pythonProject1"
 
-# 암호화할 원본 CSV 파일의 경로.
-# 이 파일은 반드시 이 스크립트와 동일한 디렉토리에 존재해야 합니다.
-original_data_file = "Temporary personal data.csv"
-# 암호화된 데이터를 저장할 바이너리 파일의 경로.
-# 이 파일은 텍스트 편집기로 내용을 확인할 수 없게 됩니다.
-encrypted_data_file = "encrypted_personal_data.bin"
+RAW_DATA_FILE_NAME = "Temporary personal data.csv"  # 암호화할 '원본 데이터 파일명' (이 파일이 반드시 존재해야 함!)
+ENCRYPTED_FILE_NAME = "encrypted_personal_data.bin"  # 암호화된 데이터를 저장할 파일
+SALT_FILE_NAME = "salt.bin"  # 솔트(salt)를 저장할 파일
 
-
-# ====================================================================
-# [보조 함수: 비밀번호로부터 Fernet 암호화 키 생성]
-# ====================================================================
-# 사용자 비밀번호로부터 Fernet 암호화에 사용될 키를 안전하게 생성합니다.
-# PBKDF2HMAC는 비밀번호를 기반으로 키를 도출하는 표준적인 방법입니다.
-def generate_fernet_key(password: str) -> bytes:
-    password_bytes = password.encode()  # 비밀번호 문자열을 바이트열로 변환
-    salt = b'juhyuns_secret_salt_value!'  # 키 파생 시 사용될 솔트 값 (반드시 바이트열 형태)
-
-    # PBKDF2HMAC: 비밀번호로부터 안전하게 키를 파생하기 위한 KDF (Key Derivation Function)
-    kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),  # SHA256 해시 알고리즘 사용
-        length=32,  # 파생될 키의 길이 (256비트 = 32바이트)
-        salt=salt,  # 키 파생에 사용될 솔트
-        iterations=480000,  # 반복 횟수 (보안 강도와 성능 트레이드오프 지점)
-        backend=default_backend()  # 암호화 연산을 수행할 백엔드 (시스템 기본)
-    )
-    # 파생된 키를 Fernet 포맷에 맞게 base64 URL-safe 인코딩
-    key = base64.urlsafe_b64encode(kdf.derive(password_bytes))
-    return key
-
-
-# ====================================================================
-# [1단계: 원본 CSV 파일을 읽어 암호화 후 바이너리 파일로 저장]
-# ====================================================================
-print(f"--- 1단계: 원본 '{original_data_file}' 파일을 읽어 암호화합니다. ---")
-
-# 이전에 생성된 암호화 파일이 있다면 삭제하여 깨끗한 상태로 시작합니다.
-if os.path.exists(encrypted_data_file):
-    os.remove(encrypted_data_file)
-    print(f"이전 암호화 파일 '{encrypted_data_file}'을 삭제했습니다.")
+# --- 초강력 3. 암호화 과정 실행 ---
+# 이제 더 이상 가짜 데이터를 만들지 않고, 기존에 존재하는 RAW_DATA_FILE_NAME 파일을 사용합니다.
+print(f"\n--- '{RAW_DATA_FILE_NAME}' 파일 암호화 시작 ---")
 
 try:
-    # 암호화할 원본 파일이 존재하는지 확인합니다.
-    if not os.path.exists(original_data_file):
-        raise FileNotFoundError(f"원본 파일 '{original_data_file}'을 찾을 수 없습니다. 먼저 파일을 생성해 주세요.")
+    # 3-1. 원본 개인 정보 CSV 파일 불러오기 (암호화할 대상)
+    # 이 시점에서 RAW_DATA_FILE_NAME 파일이 반드시 존재해야 합니다.
+    if not os.path.exists(RAW_DATA_FILE_NAME):
+        raise FileNotFoundError(f"오류: 원본 파일 '{RAW_DATA_FILE_NAME}'을 찾을 수 없습니다. 파일을 생성하거나 경로를 확인하세요.")
+    with open(RAW_DATA_FILE_NAME, 'rb') as f:
+        raw_data_bytes = f.read()
+    print(f"[*] '{RAW_DATA_FILE_NAME}' 파일 로드 완료.")
 
-    # 설정된 비밀번호로부터 Fernet 암호화 키를 생성합니다.
-    encryption_key = generate_fernet_key(CORRECT_KEY_PASSWORD)
-    f = Fernet(encryption_key)
+    # 3-2. 초강력 솔트(salt) 생성 (여기서 단 한 번! 무작위 솔트를 만든다!)
+    # 이 솔트는 암호화와 복호화 모두에 사용되므로, 반드시 안전하게 salt.bin 파일에 저장해야 합니다.
+    # 기존 salt.bin이 있다면 덮어쓰게 됩니다.
+    generated_salt = os.urandom(16)
 
-    # 원본 CSV 파일의 내용을 바이트열 형태로 읽어들입니다.
-    with open(original_data_file, 'rb') as file:
-        original_bytes = file.read()
+    # 3-3. 생성된 솔트를 파일로 저장 (복호화 시 사용해야 함!)
+    with open(SALT_FILE_NAME, 'wb') as f:
+        f.write(generated_salt)
+    print(f"[*] '{SALT_FILE_NAME}' 파일에 솔트 저장 완료.")
 
-    # 읽어들인 바이트열 데이터를 암호화합니다.
-    encrypted_bytes = f.encrypt(original_bytes)
+    # 3-4. ⭐⭐⭐ 암호화 키 생성 (CORRECT_KEY_PASSWORD와 생성된 솔트 사용) ⭐⭐⭐
+    encryption_key_bytes = derive_key(CORRECT_KEY_PASSWORD, generated_salt)
+    encryption_key_str = encryption_key_bytes.decode('utf-8')  # 디버깅용 확인 출력!
+    print(f"--- [암호화 시점] 생성된 최종 키 (Base64): '{encryption_key_str}' ---")
 
-    # 암호화된 바이트열을 바이너리 파일로 저장합니다.
-    with open(encrypted_data_file, 'wb') as file:
-        file.write(encrypted_bytes)
+    # 3-5. Fernet 암호화기 초기화 (생성된 키를 Fernet 객체에 넘겨준다!)
+    fernet_encryptor = Fernet(encryption_key_bytes)
+    print(f"[*] Fernet 암호화기 초기화 완료 (키 생성 성공).")
 
-    print(f"--- '{encrypted_data_file}'에 암호화된 데이터가 저장되었습니다. ---")
-    print(f"--- 이제 이 파일은 올바른 인증키 없이는 내용을 확인할 수 없습니다. ---")
+    # 3-6. 데이터 암호화 및 파일 저장
+    # 기존 encrypted_personal_data.bin이 있다면 덮어쓰게 됩니다.
+    encrypted_data = fernet_encryptor.encrypt(raw_data_bytes)
+    with open(ENCRYPTED_FILE_NAME, 'wb') as encrypted_file:
+        encrypted_file.write(encrypted_data)
+    print(f"[+] 암호화된 개인 정보가 '{ENCRYPTED_FILE_NAME}' 파일로 저장되었습니다. (암호화 성공)")
+
+    print("\n--- 암호화 과정 완료 ---")
 
 except FileNotFoundError as e:
-    print(f"--- 파일 암호화 실패: {e} ---")
+    print(f"[!] 암호화 실패: 필요한 파일이 없습니다. {e}")
+    traceback.print_exc()
 except Exception as e:
-    print(f"--- 파일 암호화 중 오류 발생: {e} ---")
-
-print("\n--- 데이터 암호화 과정이 완료되었습니다. ---")
-print(f"--- 다음 단계에서는 '{encrypted_data_file}' 파일을 복호화할 예정입니다. ---")
+    print(f"[!] 예상치 못한 초강력 오류 발생: {type(e).__name__} - {e}")
+    traceback.print_exc()
