@@ -78,7 +78,7 @@ try:
             decrypted_single_record_bytes = fernet_decryptor.decrypt(encrypted_line_bytes)
             decrypted_lines.append(decrypted_single_record_bytes.decode('utf-8'))
         except cryptography.fernet.InvalidToken:
-            # print(f"[!] {line_number+1}번째 레코드 복호화 실패 (InvalidToken - 예상된 결과)") # 콘솔 메시지 과부하 방지!
+          
             failed_decryptions += 1
             decrypted_lines.append(f"[복호화 실패 - 인증키 불일치: {line_number + 1}]")
         except Exception as e:
